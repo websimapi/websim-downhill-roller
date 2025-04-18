@@ -367,6 +367,9 @@ function animate() {
         ballBody.velocity.z * ballBody.velocity.z
     );
     
+    // Define speedFactor here so it can be used throughout the animate function
+    const speedFactor = Math.min(1, currentSpeed / 40);
+    
     // Scale forces inversely with speed for better control
     const speedScalingFactor = Math.max(0.4, 1 - currentSpeed / 60);
     
