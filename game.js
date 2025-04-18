@@ -84,7 +84,7 @@ const ballDefaultContactMaterial = new CANNON.ContactMaterial(
 world.addContactMaterial(ballDefaultContactMaterial);
 
 // Player ball with enhanced details
-const { ballMesh, ballBody, particles, glowMesh } = createBall();
+const { ballMesh, ballBody, particles, glowMesh, radius } = createBall();
 scene.add(ballMesh);
 scene.add(particles);
 world.addBody(ballBody);
@@ -346,8 +346,8 @@ function animate() {
     ballMesh.position.copy(ballBody.position);
     ballMesh.quaternion.copy(ballBody.quaternion);
     
-    // Update particle trail with enhanced effects
-    updateBallTrail(particles, ballBody.position, ballBody.velocity, glowMesh);
+    // Update particle trail with enhanced effects - now passing radius
+    updateBallTrail(particles, ballBody.position, ballBody.velocity, glowMesh, radius);
     
     // Check for impact events
     if (ballBody.onImpact) {

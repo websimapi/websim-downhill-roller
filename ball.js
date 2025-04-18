@@ -140,12 +140,13 @@ export function createBall() {
         ballMesh: ballGroup, 
         ballBody,
         particles,
-        glowMesh
+        glowMesh,
+        radius  // Export the radius with the other ball properties
     };
 }
 
-// Improved function to update particle trail
-export function updateBallTrail(particles, ballPosition, ballVelocity, glowMesh) {
+// Updated function to include radius parameter
+export function updateBallTrail(particles, ballPosition, ballVelocity, glowMesh, radius) {
     const positions = particles.geometry.attributes.position.array;
     const speed = Math.sqrt(
         ballVelocity.x * ballVelocity.x + 
