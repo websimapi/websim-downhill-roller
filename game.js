@@ -13,23 +13,30 @@ let gameState = {
     difficulty: 1
 };
 
-// Scene setup
+// Scene setup with improved visuals
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#87CEEB'); // Sky blue
-scene.fog = new THREE.Fog('#87CEEB', 50, 250);
+const skyColor = new THREE.Color(0x87CEEB);
+const horizonColor = new THREE.Color(0xAFDFEF);
+scene.background = skyColor;
 
-// Camera setup
+// Create dynamic fog that adjusts with difficulty and time
+scene.fog = new THREE.Fog(horizonColor, 80, 250);
+
+// Camera setup with better defaults for downhill view
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 10, 20);
+camera.position.set(0, 12, 20);
+camera.lookAt(0, 0, -10);
 
-// Renderer setup
+// Renderer setup with improved shadows
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.physicallyCorrectLights = true;
+renderer.toneMappingExposure = 1.0;
 document.getElementById('game-container').appendChild(renderer.domElement);
 
-// Enhanced lighting
+// Enhanced lighting for better visuals
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
 scene.add(ambientLight);
 
@@ -50,7 +57,7 @@ scene.add(directionalLight);
 const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x444422, 0.5);
 scene.add(hemisphereLight);
 
-// Physics world with improved parameters
+// Physics world with improved parameters for better rolling
 const world = new CANNON.World({
     gravity: new CANNON.Vec3(0, -20, 0)
 });
@@ -78,7 +85,10 @@ scene.add(ballMesh);
 scene.add(particles);
 world.addBody(ballBody);
 
-// Track segments
+// Reset ball position to properly align with the downhill slope
+ballBody.position.set(0, 5, 0);
+
+// Track segments with improved handling
 const trackSegments = [];
 const trackSegmentLength = 100;
 const numInitialSegments = 5;
@@ -102,7 +112,7 @@ scene.add(impactParticles);
 let impactParticleVelocities = [];
 let impactActive = false;
 
-// Initial track generation with improved segments
+// Initial track generation with improved segments that are properly aligned
 for (let i = 0; i < numInitialSegments; i++) {
     const segment = generateTrackSegment(
         -i * trackSegmentLength, 
@@ -173,23 +183,23 @@ document.addEventListener('touchend', () => {
     keys.right = false;
 });
 
-// Improved camera follow system
+// Improved camera follow system with better downhill view
 function updateCamera() {
     // Dynamic camera positioning based on speed
     const speed = Math.abs(ballBody.velocity.z);
     const speedFactor = Math.min(1, speed / 30);
     
-    // Base offset (when still)
-    let offsetY = 15;
-    let offsetZ = 25;
+    // Base offset (when still) - improved to see more downhill
+    let offsetY = 12;
+    let offsetZ = 15;
     
     // Adjust for speed (lower and further back at high speeds)
     offsetY = offsetY - speedFactor * 5;
-    offsetZ = offsetZ + speedFactor * 10;
+    offsetZ = offsetZ + speedFactor * 15;
     
     // Create smooth camera movement
     const idealOffset = new THREE.Vector3(0, offsetY, offsetZ);
-    const idealLookAt = new THREE.Vector3(0, 0, -20);
+    const idealLookAt = new THREE.Vector3(0, 2, -30); // Look further down the slope
     
     const ballPosition = new THREE.Vector3(
         ballBody.position.x,
@@ -310,9 +320,9 @@ function animate() {
         ballBody.applyImpulse(new CANNON.Vec3(0, moveForce * 2, 0), ballBody.position);
     }
     
-    // Apply automatic forward force (less when going fast)
+    // Apply automatic forward force (less when going fast) - enhanced for better downhill feel
     const currentSpeed = Math.abs(ballBody.velocity.z);
-    const forwardForce = 5 * Math.max(0.5, (1 - currentSpeed/40)) * gameState.difficulty;
+    const forwardForce = 7 * Math.max(0.5, (1 - currentSpeed/40)) * gameState.difficulty;
     ballBody.applyForce(new CANNON.Vec3(0, 0, -forwardForce), ballBody.position);
     
     // Update camera
@@ -363,6 +373,10 @@ function animate() {
         }
     }
     
+    // Update fog color based on difficulty to create mood changes
+    const fogHue = 0.6 - Math.min(0.1, gameState.difficulty * 0.01);
+    scene.fog.color.setHSL(fogHue, 0.5, 0.8);
+    
     // Calculate score and speed
     gameState.score = Math.floor(Math.abs(ballBody.position.z));
     document.getElementById('score-value').textContent = gameState.score;
@@ -392,7 +406,7 @@ function gameOver() {
 }
 
 function startGame() {
-    // Reset ball position
+    // Reset ball position with better initial height to ensure proper placement on track
     ballBody.position.set(0, 5, 0);
     ballBody.velocity.set(0, 0, 0);
     ballBody.angularVelocity.set(0, 0, 0);
