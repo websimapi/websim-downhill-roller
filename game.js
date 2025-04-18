@@ -13,53 +13,57 @@ let gameState = {
     difficulty: 1
 };
 
-// Scene setup with improved visuals
+// Scene setup with enhanced visuals
 const scene = new THREE.Scene();
-const skyColor = new THREE.Color(0x87CEEB);
-const horizonColor = new THREE.Color(0xAFDFEF);
+const skyColor = new THREE.Color(0x88CEFA); // Brighter blue sky
 scene.background = skyColor;
 
-// Create dynamic fog that adjusts with difficulty and time
-scene.fog = new THREE.Fog(horizonColor, 80, 250);
+// Create dynamic fog that changes color with elevation and speed
+scene.fog = new THREE.Fog(skyColor, 60, 400);
 
-// Camera setup with better defaults for downhill view
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 12, 20);
-camera.lookAt(0, 0, -10);
+// Camera setup with improved downhill view
+const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 15, 25);
+camera.lookAt(0, 0, -20);
 
-// Renderer setup with improved shadows
+// Renderer setup with enhanced shadows and effects
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.physicallyCorrectLights = true;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMappingExposure = 1.2; // Brighter rendering
 document.getElementById('game-container').appendChild(renderer.domElement);
 
-// Enhanced lighting for better visuals
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+// Improved lighting for better terrain visibility
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Brighter ambient
 scene.add(ambientLight);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-directionalLight.position.set(50, 200, 100);
+const directionalLight = new THREE.DirectionalLight(0xffffcc, 1.0); // Warmer and brighter sunlight
+directionalLight.position.set(60, 200, 100);
 directionalLight.castShadow = true;
 directionalLight.shadow.mapSize.width = 2048;
 directionalLight.shadow.mapSize.height = 2048;
 directionalLight.shadow.camera.near = 50;
-directionalLight.shadow.camera.far = 300;
-directionalLight.shadow.camera.left = -100;
-directionalLight.shadow.camera.right = 100;
-directionalLight.shadow.camera.top = 100;
-directionalLight.shadow.camera.bottom = -100;
+directionalLight.shadow.camera.far = 500; // Increased shadow distance
+directionalLight.shadow.camera.left = -150;
+directionalLight.shadow.camera.right = 150;
+directionalLight.shadow.camera.top = 150;
+directionalLight.shadow.camera.bottom = -150;
 scene.add(directionalLight);
 
 // Add hemisphere light for better environment lighting
-const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x444422, 0.5);
+const hemisphereLight = new THREE.HemisphereLight(0x88CEFA, 0x553311, 0.7); // Sky to ground colors
 scene.add(hemisphereLight);
+
+// Add subtle directional rim light for better edge definition
+const rimLight = new THREE.DirectionalLight(0xffffdd, 0.3);
+rimLight.position.set(-50, 50, -100);
+scene.add(rimLight);
 
 // Physics world with improved parameters for better rolling
 const world = new CANNON.World({
-    gravity: new CANNON.Vec3(0, -20, 0)
+    gravity: new CANNON.Vec3(0, -25, 0) // Increased gravity for faster downhill
 });
 
 // Set up contact material handling for better physics
@@ -70,8 +74,8 @@ const ballDefaultContactMaterial = new CANNON.ContactMaterial(
     defaultMaterial,
     ballMaterial,
     {
-        friction: 0.3,
-        restitution: 0.7,
+        friction: 0.4,
+        restitution: 0.6,
         contactEquationStiffness: 1e7,
         contactEquationRelaxation: 3
     }
@@ -80,29 +84,32 @@ const ballDefaultContactMaterial = new CANNON.ContactMaterial(
 world.addContactMaterial(ballDefaultContactMaterial);
 
 // Player ball with enhanced details
-const { ballMesh, ballBody, particles } = createBall();
+const { ballMesh, ballBody, particles, glowMesh } = createBall();
 scene.add(ballMesh);
 scene.add(particles);
 world.addBody(ballBody);
 
 // Reset ball position to properly align with the downhill slope
-ballBody.position.set(0, 5, 0);
+ballBody.position.set(0, 8, 0); // Higher starting position for better visibility
 
 // Track segments with improved handling
 const trackSegments = [];
-const trackSegmentLength = 100;
+const trackSegmentLength = 120; // Longer segments for better performance
 const numInitialSegments = 5;
 
-// Impact particles system for collisions
+// Impact particles system with improved effects
 const impactGeometry = new THREE.BufferGeometry();
-const impactPositions = new Float32Array(100 * 3); // 100 particles
+const impactPositions = new Float32Array(150 * 3); // More particles
+const impactColors = new Float32Array(150 * 3); // Add colors
 impactGeometry.setAttribute('position', new THREE.BufferAttribute(impactPositions, 3));
+impactGeometry.setAttribute('color', new THREE.BufferAttribute(impactColors, 3));
 
 const impactMaterial = new THREE.PointsMaterial({
-    color: 0xffffaa,
-    size: 0.5,
+    size: 0.7,
+    vertexColors: true,
     transparent: true,
-    opacity: 0.8
+    opacity: 0.9,
+    blending: THREE.AdditiveBlending
 });
 
 const impactParticles = new THREE.Points(impactGeometry, impactMaterial);
@@ -112,7 +119,7 @@ scene.add(impactParticles);
 let impactParticleVelocities = [];
 let impactActive = false;
 
-// Initial track generation with improved segments that are properly aligned
+// Initial track generation with improved segments
 for (let i = 0; i < numInitialSegments; i++) {
     const segment = generateTrackSegment(
         -i * trackSegmentLength, 
@@ -183,23 +190,31 @@ document.addEventListener('touchend', () => {
     keys.right = false;
 });
 
-// Improved camera follow system with better downhill view
+// Dramatically improved camera follow system
 function updateCamera() {
     // Dynamic camera positioning based on speed
     const speed = Math.abs(ballBody.velocity.z);
-    const speedFactor = Math.min(1, speed / 30);
+    const speedFactor = Math.min(1, speed / 40);
     
-    // Base offset (when still) - improved to see more downhill
-    let offsetY = 12;
-    let offsetZ = 15;
+    // Base offset (when still)
+    let offsetY = 14 - speedFactor * 5; // Lower at high speeds
+    let offsetZ = 18 + speedFactor * 20; // Further back at high speeds
     
-    // Adjust for speed (lower and further back at high speeds)
-    offsetY = offsetY - speedFactor * 5;
-    offsetZ = offsetZ + speedFactor * 15;
+    // Add dynamic camera tilt based on terrain and speed
+    const tiltFactor = Math.min(1, speed / 30) * 0.15;
+    const idealOffset = new THREE.Vector3(
+        ballBody.velocity.x * 0.3, // Slight shift in direction of horizontal movement
+        offsetY,
+        offsetZ
+    );
     
-    // Create smooth camera movement
-    const idealOffset = new THREE.Vector3(0, offsetY, offsetZ);
-    const idealLookAt = new THREE.Vector3(0, 2, -30); // Look further down the slope
+    // Look ahead further on steep downhill sections and higher speeds
+    const lookAheadDistance = 20 + speedFactor * 40;
+    const idealLookAt = new THREE.Vector3(
+        ballBody.velocity.x * 0.5, // Look in direction of horizontal movement
+        -2 - speedFactor * 3, // Look further down at high speeds
+        -lookAheadDistance // Look ahead of the ball
+    );
     
     const ballPosition = new THREE.Vector3(
         ballBody.position.x,
@@ -207,18 +222,35 @@ function updateCamera() {
         ballBody.position.z
     );
     
-    // Smoothly move camera (lerp)
+    // Add camera shake on high speeds or impacts
+    if (speed > 30 || ballBody.onImpact) {
+        const shakeMagnitude = ballBody.onImpact ? 
+            Math.min(0.3, ballBody.onImpact.intensity * 0.3) : 
+            Math.min(0.1, (speed - 30) / 50);
+            
+        idealOffset.x += (Math.random() - 0.5) * shakeMagnitude;
+        idealOffset.y += (Math.random() - 0.5) * shakeMagnitude;
+        idealOffset.z += (Math.random() - 0.5) * shakeMagnitude;
+    }
+    
+    // Smoothly move camera with variable smoothing based on speed
+    // Faster movement at high speeds for more responsive feel
+    const smoothing = 0.1 + speedFactor * 0.05;
     const currentPosition = new THREE.Vector3();
     currentPosition.copy(camera.position);
-    currentPosition.lerp(ballPosition.clone().add(idealOffset), 0.1);
+    currentPosition.lerp(ballPosition.clone().add(idealOffset), smoothing);
     camera.position.copy(currentPosition);
     
-    // Look at ball with slight forward bias
+    // Look at target with lead
     const targetLookAt = ballPosition.clone().add(idealLookAt);
     camera.lookAt(targetLookAt);
+    
+    // Adjust field of view based on speed for sense of speed
+    camera.fov = 75 + speedFactor * 15;
+    camera.updateProjectionMatrix();
 }
 
-// Function to create impact effect
+// Enhanced impact effect with more dynamic particles
 function createImpact(position, intensity) {
     impactParticles.visible = true;
     impactActive = true;
@@ -226,8 +258,8 @@ function createImpact(position, intensity) {
     // Reset particles
     impactParticleVelocities = [];
     
-    // Create explosion effect
-    for (let i = 0; i < 100; i++) {
+    // Create explosion effect with varied colors
+    for (let i = 0; i < 150; i++) {
         // Random position near the impact
         impactPositions[i * 3] = position.x + (Math.random() - 0.5) * 0.5;
         impactPositions[i * 3 + 1] = position.y + (Math.random() - 0.5) * 0.5;
@@ -235,45 +267,57 @@ function createImpact(position, intensity) {
         
         // Random velocity for each particle
         impactParticleVelocities.push({
-            x: (Math.random() - 0.5) * 10 * intensity,
-            y: Math.random() * 10 * intensity, // Mostly up
-            z: (Math.random() - 0.5) * 10 * intensity
+            x: (Math.random() - 0.5) * 15 * intensity,
+            y: (Math.random() * 10 + 5) * intensity, // Mostly up
+            z: (Math.random() - 0.5) * 15 * intensity
         });
+        
+        // Set colors - orange/yellow/red for impacts
+        const colorVariation = Math.random();
+        impactColors[i * 3] = 1.0; // Red
+        impactColors[i * 3 + 1] = 0.3 + colorVariation * 0.7; // Variable yellow
+        impactColors[i * 3 + 2] = 0.1 * colorVariation; // Low blue
     }
     
     impactParticles.geometry.attributes.position.needsUpdate = true;
+    impactParticles.geometry.attributes.color.needsUpdate = true;
 }
 
-// Update impact particles
+// Update impact particles with better physics
 function updateImpact(delta) {
     if (!impactActive) return;
     
     let stillActive = false;
     
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 150; i++) {
         // Apply gravity and update positions
-        impactParticleVelocities[i].y -= 20 * delta; // Gravity
+        impactParticleVelocities[i].y -= 30 * delta; // Stronger gravity
         
         impactPositions[i * 3] += impactParticleVelocities[i].x * delta;
         impactPositions[i * 3 + 1] += impactParticleVelocities[i].y * delta;
         impactPositions[i * 3 + 2] += impactParticleVelocities[i].z * delta;
         
-        // If any particle is still above ground, effect is still active
-        if (impactPositions[i * 3 + 1] > 0) {
+        // Fade out particles over time
+        const particleLife = impactPositions[i * 3 + 1] / 10 + 0.5; // Height-based fade
+        impactColors[i * 3 + 1] *= 0.98; // Yellow fades faster
+        
+        // If any particle is still active
+        if (impactPositions[i * 3 + 1] > 0 && particleLife > 0.1) {
             stillActive = true;
         }
     }
     
     impactParticles.geometry.attributes.position.needsUpdate = true;
+    impactParticles.geometry.attributes.color.needsUpdate = true;
     
-    // Deactivate once all particles hit the ground
+    // Deactivate once particles fade out
     if (!stillActive) {
         impactActive = false;
         impactParticles.visible = false;
     }
 }
 
-// Game loop
+// Enhanced game loop
 const clock = new THREE.Clock();
 let lastTime = 0;
 
@@ -281,21 +325,29 @@ function animate() {
     requestAnimationFrame(animate);
     
     if (!gameState.started || gameState.gameOver) {
-        renderer.render(scene, camera);
+        // Add subtle rotation to the ball on the menu screen
+        if (!gameState.started) {
+            ballMesh.rotation.y += 0.01;
+            renderer.render(scene, camera);
+        }
         return;
     }
     
     const delta = clock.getDelta();
     
-    // Update physics
-    world.step(1/60, delta, 3);
+    // Update physics with better precision
+    const substeps = 2; // More substeps for stable physics
+    const timeStep = delta / substeps;
+    for (let i = 0; i < substeps; i++) {
+        world.step(1/60, timeStep, 3);
+    }
     
     // Update ball mesh to match physics body
     ballMesh.position.copy(ballBody.position);
     ballMesh.quaternion.copy(ballBody.quaternion);
     
-    // Update particle trail
-    updateBallTrail(particles, ballBody.position, ballBody.velocity);
+    // Update particle trail with enhanced effects
+    updateBallTrail(particles, ballBody.position, ballBody.velocity, glowMesh);
     
     // Check for impact events
     if (ballBody.onImpact) {
@@ -306,26 +358,69 @@ function animate() {
     // Update impact particles
     updateImpact(delta);
     
-    // Enhanced ball movement controls
-    const moveForce = 15 * (1 + gameState.difficulty * 0.5);
-    if (keys.left) ballBody.applyForce(new CANNON.Vec3(-moveForce, 0, 0), ballBody.position);
-    if (keys.right) ballBody.applyForce(new CANNON.Vec3(moveForce, 0, 0), ballBody.position);
+    // Enhanced ball movement with better control and responsiveness
+    const moveForce = 25 * (1 + gameState.difficulty * 0.3);
     
-    // Forward/backward control
-    if (keys.forward) ballBody.applyForce(new CANNON.Vec3(0, 0, -moveForce * 1.5), ballBody.position);
-    if (keys.backward) ballBody.applyForce(new CANNON.Vec3(0, 0, moveForce * 0.8), ballBody.position);
+    // Calculate current speed for force scaling
+    const currentSpeed = Math.sqrt(
+        ballBody.velocity.x * ballBody.velocity.x +
+        ballBody.velocity.z * ballBody.velocity.z
+    );
     
-    // Jump control when on ground
-    if (keys.jump && Math.abs(ballBody.velocity.y) < 0.5) {
-        ballBody.applyImpulse(new CANNON.Vec3(0, moveForce * 2, 0), ballBody.position);
+    // Scale forces inversely with speed for better control
+    const speedScalingFactor = Math.max(0.4, 1 - currentSpeed / 60);
+    
+    if (keys.left) {
+        // Apply more force when moving slowly, less when fast
+        const leftForce = moveForce * speedScalingFactor;
+        ballBody.applyForce(new CANNON.Vec3(-leftForce, 0, 0), ballBody.position);
     }
     
-    // Apply automatic forward force (less when going fast) - enhanced for better downhill feel
-    const currentSpeed = Math.abs(ballBody.velocity.z);
-    const forwardForce = 7 * Math.max(0.5, (1 - currentSpeed/40)) * gameState.difficulty;
-    ballBody.applyForce(new CANNON.Vec3(0, 0, -forwardForce), ballBody.position);
+    if (keys.right) {
+        const rightForce = moveForce * speedScalingFactor;
+        ballBody.applyForce(new CANNON.Vec3(rightForce, 0, 0), ballBody.position);
+    }
     
-    // Update camera
+    // Forward/backward control with improved scaling
+    if (keys.forward) {
+        const fwdForce = moveForce * 1.2 * speedScalingFactor;
+        ballBody.applyForce(new CANNON.Vec3(0, 0, -fwdForce), ballBody.position);
+    }
+    
+    if (keys.backward) {
+        const backForce = moveForce * 0.8 * speedScalingFactor;
+        ballBody.applyForce(new CANNON.Vec3(0, 0, backForce), ballBody.position);
+    }
+    
+    // Jump control when on ground with better detection
+    if (keys.jump) {
+        // Check if ball is on or near ground
+        let onGround = false;
+        const rayStart = new CANNON.Vec3(ballBody.position.x, ballBody.position.y, ballBody.position.z);
+        const rayEnd = new CANNON.Vec3(ballBody.position.x, ballBody.position.y - 1.3, ballBody.position.z);
+        const rayCastResult = new CANNON.RaycastResult();
+        world.raycastClosest(rayStart, rayEnd, {}, rayCastResult);
+        
+        if (rayCastResult.hasHit || Math.abs(ballBody.velocity.y) < 0.5) {
+            onGround = true;
+        }
+        
+        if (onGround) {
+            ballBody.applyImpulse(new CANNON.Vec3(0, moveForce * 1.5, 0), ballBody.position);
+        }
+    }
+    
+    // Apply automatic forward force that scales with difficulty
+    // Less force when going fast, more on steep sections
+    const forwardFactor = Math.max(0.6, (1 - currentSpeed/50));
+    const baseDifficulty = 1 + gameState.difficulty * 0.2;
+    const forwardForce = 12 * forwardFactor * baseDifficulty;
+    
+    // Apply forward force in the direction of the slope, not just along Z
+    // This provides better acceleration on steep sections
+    ballBody.applyForce(new CANNON.Vec3(0, -forwardForce * 0.3, -forwardForce), ballBody.position);
+    
+    // Update camera with improved follow system
     updateCamera();
     
     // Update obstacles
@@ -338,13 +433,20 @@ function animate() {
         }
     });
     
-    // Track regeneration
-    if (ballBody.position.z < trackSegments[trackSegments.length - 1].endZ + trackSegmentLength) {
+    // Enhanced track regeneration based on player position
+    // Generate track further ahead to prevent pop-in at high speeds
+    const lookAheadDistance = 50 + Math.min(150, currentSpeed * 4);
+    if (ballBody.position.z < trackSegments[trackSegments.length - 1].endZ + lookAheadDistance) {
         const lastSegment = trackSegments[trackSegments.length - 1];
+        
+        // Calculate increasing difficulty based on distance traveled
+        const distanceDifficulty = 1 + Math.floor(Math.abs(ballBody.position.z) / 500) * 0.25;
+        const newDifficulty = Math.min(3.0, distanceDifficulty);
+        
         const newSegment = generateTrackSegment(
             lastSegment.endZ, 
             lastSegment.endZ - trackSegmentLength, 
-            gameState.difficulty
+            newDifficulty
         );
         trackSegments.push(newSegment);
         scene.add(newSegment.visual);
@@ -357,27 +459,45 @@ function animate() {
             });
         }
         
-        // Remove old segments
-        if (trackSegments.length > numInitialSegments + 3) {
+        // Remove old segments with better memory management
+        if (trackSegments.length > numInitialSegments + 2) {
             const oldSegment = trackSegments.shift();
             scene.remove(oldSegment.visual);
             world.removeBody(oldSegment.body);
             
-            // Remove obstacle bodies
+            // Clean up obstacle bodies
             if (oldSegment.obstacles) {
                 oldSegment.obstacles.forEach(obstacle => {
                     scene.remove(obstacle.mesh);
                     world.removeBody(obstacle.body);
                 });
             }
+            
+            // Force garbage collection on large objects
+            if (oldSegment.visual.geometry) {
+                oldSegment.visual.geometry.dispose();
+            }
+            if (oldSegment.visual.material) {
+                if (Array.isArray(oldSegment.visual.material)) {
+                    oldSegment.visual.material.forEach(m => m.dispose());
+                } else {
+                    oldSegment.visual.material.dispose();
+                }
+            }
         }
     }
     
-    // Update fog color based on difficulty to create mood changes
-    const fogHue = 0.6 - Math.min(0.1, gameState.difficulty * 0.01);
-    scene.fog.color.setHSL(fogHue, 0.5, 0.8);
+    // Update fog color and distance based on speed and difficulty
+    // Creates atmospheric effects for better downhill experience
+    const fogHue = 0.6 - Math.min(0.15, gameState.difficulty * 0.05);
+    const fogSaturation = 0.5 - speedFactor * 0.2;
+    const fogLightness = 0.8 - speedFactor * 0.1;
     
-    // Calculate score and speed
+    scene.fog.color.setHSL(fogHue, fogSaturation, fogLightness);
+    scene.fog.near = 60 + speedFactor * 30; // Fog starts further away at high speeds
+    scene.fog.far = 300 + speedFactor * 200; // Extends further at high speeds
+    
+    // Calculate score and speed with smoothing
     gameState.score = Math.floor(Math.abs(ballBody.position.z));
     document.getElementById('score-value').textContent = gameState.score;
     
@@ -388,26 +508,28 @@ function animate() {
     gameState.speed = Math.floor(ballVelocity * 3.6); // m/s to km/h
     document.getElementById('speed-value').textContent = gameState.speed;
     
-    // Increase difficulty progressively
-    gameState.difficulty = 1 + Math.floor(gameState.score / 500) * 0.2;
+    // Increase difficulty progressively for more challenge
+    gameState.difficulty = 1 + Math.floor(gameState.score / 400) * 0.2;
     
-    // Check for game over
-    if (ballBody.position.y < -10) {
+    // Check for game over - falling off track or hitting terrain
+    if (ballBody.position.y < -15) {
         gameOver();
     }
     
     renderer.render(scene, camera);
 }
 
+// Game over screen
 function gameOver() {
     gameState.gameOver = true;
     document.getElementById('game-over').classList.remove('hidden');
     document.getElementById('final-score').textContent = gameState.score;
 }
 
+// Start game function
 function startGame() {
     // Reset ball position with better initial height to ensure proper placement on track
-    ballBody.position.set(0, 5, 0);
+    ballBody.position.set(0, 8, 0);
     ballBody.velocity.set(0, 0, 0);
     ballBody.angularVelocity.set(0, 0, 0);
     

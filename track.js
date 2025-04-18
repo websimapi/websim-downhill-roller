@@ -9,11 +9,11 @@ export function generateTrackSegment(startZ, endZ, difficulty) {
     // Create track visual
     const trackGroup = new THREE.Group();
     
-    // Use heightmap for terrain with higher resolution for better detail
-    const resolution = 96;
+    // Use heightmap for terrain with HIGHER resolution for better detail
+    const resolution = 128; 
     const noise = new SimplexNoise();
     const terrainGeometry = new THREE.PlaneGeometry(
-        segmentWidth + 30, // Wider terrain for better visuals
+        segmentWidth + 60, 
         segmentLength, 
         resolution, 
         resolution
@@ -24,53 +24,113 @@ export function generateTrackSegment(startZ, endZ, difficulty) {
     const terrainWidthPoints = resolution + 1;
     const terrainLengthPoints = resolution + 1;
     
-    // Generate heightmap with better noise patterns
+    // Generate heightmap with dramatically improved noise patterns
     for (let i = 0; i < terrainGeometry.attributes.position.count; i++) {
         const x = terrainGeometry.attributes.position.getX(i);
         const z = terrainGeometry.attributes.position.getZ(i);
         
-        // Keep track path fairly flat but bumpy at higher difficulties
-        let y = 0;
-        
-        // More intense bumps off to the sides
+        // Calculate distance from center track
         const distFromCenter = Math.abs(x);
         
-        if (distFromCenter < segmentWidth/2 - 3) {
-            // Main track area - very slightly bumpy at higher difficulties
-            // Use multiple noise frequencies for more natural terrain
-            y = noise.noise(x * 0.05, z * 0.05) * 0.3 * difficulty +
-                noise.noise(x * 0.2, z * 0.1) * 0.1 * difficulty;
+        // Initialize height
+        let y = 0;
+        
+        // Base noise at different scales for more natural terrain
+        const baseNoise1 = noise.noise(x * 0.02, z * 0.02) * 15;
+        const baseNoise2 = noise.noise(x * 0.05, z * 0.05) * 7;
+        const baseNoise3 = noise.noise(x * 0.1, z * 0.1) * 3;
+        const detailNoise = noise.noise(x * 0.3, z * 0.3) * 1.5;
+        
+        if (distFromCenter < segmentWidth/2 - 4) {
+            // Main track area - slightly bumpy with ruts and grooves
+            y = noise.noise(x * 0.1, z * 0.05) * 0.6 * difficulty +
+                noise.noise(x * 0.3, z * 0.2) * 0.3 * difficulty;
                 
-            // Add some subtle road ripples
-            y += Math.sin(z * 0.5) * 0.05 * difficulty;
-        } else if (distFromCenter < segmentWidth/2 + 6) {
-            // Side areas - more bumpy
-            y = noise.noise(x * 0.1, z * 0.08) * 2 * difficulty +
-                noise.noise(x * 0.3, z * 0.2) * 1 * difficulty;
+            // Add some track features - racing grooves and center ridge
+            y += Math.sin(x * 3) * 0.1;
             
-            // Create a ditch/shoulder at the edge of the main track
-            if (distFromCenter > segmentWidth/2 - 3 && distFromCenter < segmentWidth/2) {
-                y -= 1.2 + noise.noise(x * 0.5, z * 0.5) * 0.3;
+            // Add some subtle downhill ripples
+            y += Math.sin(z * 0.8) * 0.15 * difficulty;
+            
+            // Add occasional potholes
+            if (noise.noise(x * 0.5, z * 0.3) > 0.7) {
+                y -= 0.3 * difficulty;
+            }
+        } else if (distFromCenter < segmentWidth/2) {
+            // Track edge - create a slight banking effect
+            const edgeFactor = (distFromCenter - (segmentWidth/2 - 4)) / 4;
+            y = noise.noise(x * 0.1, z * 0.05) * 0.6 * difficulty +
+                noise.noise(x * 0.3, z * 0.2) * 0.3 * difficulty;
+            
+            // Bank the edges slightly upward
+            y += edgeFactor * 0.8;
+            
+            // Add edge texture variations
+            y += noise.noise(x * 1.0, z * 0.5) * 0.4 * difficulty;
+        } else if (distFromCenter < segmentWidth/2 + 8) {
+            // Shoulder area - more varied with ditches and mounds
+            const shoulderDist = distFromCenter - segmentWidth/2;
+            
+            // Create a ditch near the track edge
+            if (shoulderDist < 2) {
+                y = -1.5 + noise.noise(x * 0.5, z * 0.3) * 0.8 * difficulty;
+            } else {
+                // Transition to surrounding terrain
+                const mix = (shoulderDist - 2) / 6;
+                
+                // Mix between shoulder terrain and outer terrain
+                y = (1-mix) * (
+                    -0.5 + noise.noise(x * 0.2, z * 0.1) * 2 * difficulty +
+                    noise.noise(x * 0.4, z * 0.3) * 1 * difficulty
+                ) + mix * (
+                    baseNoise1 + baseNoise2 * 0.5 + baseNoise3 * 0.3 + detailNoise
+                );
+                
+                // Add occasional debris mounds
+                if (noise.noise(x * 0.6, z * 0.4) > 0.7) {
+                    y += 1.5 * difficulty;
+                }
             }
         } else {
-            // Outer areas - mountainous
-            // Use multiple noise frequencies for more natural hills
-            y = noise.noise(x * 0.05, z * 0.05) * 6 * difficulty +
-                noise.noise(x * 0.2, z * 0.2) * 3 * difficulty;
+            // Outer mountain areas - dramatic and varied
             
-            // Make mountains higher further from the track
-            y += (distFromCenter - segmentWidth/2 - 5) * 0.7;
+            // Base height influenced by distance from track
+            const mountainBaseFactor = Math.min(1, (distFromCenter - segmentWidth/2 - 8) / 30);
+            const mountainHeight = 20 + 30 * mountainBaseFactor;
             
-            // Add occasional plateaus and cliffs
-            const cliffNoise = noise.noise(x * 0.3, z * 0.1);
+            // Combine multiple noise frequencies for natural mountains
+            y = baseNoise1 * mountainBaseFactor * 1.5 + 
+                baseNoise2 * mountainBaseFactor + 
+                baseNoise3 * 0.7 + 
+                detailNoise * 0.5;
+            
+            // Scale height based on distance
+            y *= (0.5 + mountainBaseFactor);
+            
+            // Add dramatic cliff features
+            const cliffNoise = noise.noise(x * 0.15, z * 0.15);
             if (cliffNoise > 0.6) {
-                y += 5 * (cliffNoise - 0.6);
+                y += (cliffNoise - 0.6) * 20 * mountainBaseFactor;
             }
+            
+            // Add plateau features
+            const plateauNoise = noise.noise(x * 0.08, z * 0.08);
+            if (plateauNoise > 0.7 && plateauNoise < 0.8) {
+                y = Math.floor(y / 5) * 5 + 
+                    noise.noise(x * 0.6, z * 0.6) * 1.5;
+            }
+            
+            // Add canyon features
+            const canyonNoise = noise.noise(x * 0.04, z * 0.04);
+            if (canyonNoise < -0.6) {
+                y -= Math.abs(canyonNoise + 0.6) * 15 * mountainBaseFactor;
+            }
+            
+            // Add ridges perpendicular to track
+            y += Math.abs(Math.sin(x * 0.05)) * 5 * mountainBaseFactor;
         }
         
         terrainGeometry.attributes.position.setY(i, y);
-        
-        // Store for physics
         terrainHeightMap.push(y);
     }
     
@@ -99,76 +159,157 @@ export function generateTrackSegment(startZ, endZ, difficulty) {
         const z = terrainGeometry.attributes.position.getZ(i);
         const distFromCenter = Math.abs(x);
         
-        if (distFromCenter < segmentWidth/2 - 3) {
-            // Main track area - asphalt color with wear patterns
-            const wearEffect = noise.noise(x * 0.5, z * 0.2) * 0.1;
+        // Local variations for natural appearance
+        const localNoise = noise.noise(x * 0.5, z * 0.5) * 0.1;
+        const microNoise = noise.noise(x * 3.0, z * 3.0) * 0.05;
+        
+        if (distFromCenter < segmentWidth/2 - 4) {
+            // Main track area - asphalt with more detailed wear patterns
+            const wearEffect = noise.noise(x * 0.8, z * 0.3) * 0.15;
             const trackColor = 0.25 + wearEffect;
-            colors.push(trackColor, trackColor, trackColor + 0.02);
             
-            // Add subtle lane markers
-            if (Math.abs(x) < 1 && Math.floor(z / 5) % 6 === 0) {
-                colors[colors.length - 3] = 0.8; // R
-                colors[colors.length - 2] = 0.8; // G
-                colors[colors.length - 1] = 0.7; // B
+            // Add tire marks and road wear
+            const laneWear = Math.abs(x) < 2 ? 0.1 : 0;
+            const ageColor = noise.noise(x * 0.3, z * 0.8) * 0.08;
+            
+            colors.push(trackColor + laneWear, trackColor - ageColor, trackColor - 0.05);
+            
+            // Add lane markers
+            if (Math.abs(x) < 0.8 && Math.floor(z / 5) % 6 === 0) {
+                colors[colors.length - 3] = 0.9; 
+                colors[colors.length - 2] = 0.9; 
+                colors[colors.length - 1] = 0.8; 
             }
-        } else if (distFromCenter < segmentWidth/2 && distFromCenter > segmentWidth/2 - 1) {
-            // Track edges - warning stripes
-            if (Math.floor((z + startZ) / 3) % 2 === 0) {
-                colors.push(0.9, 0.9, 0.2); // Yellow
+        } else if (distFromCenter < segmentWidth/2) {
+            // Track edges - more prominent warning stripes
+            if (Math.floor((z + startZ) / 2.5) % 2 === 0) {
+                colors.push(0.95, 0.95, 0.2); 
             } else {
-                colors.push(0.2, 0.2, 0.2); // Black
+                colors.push(0.15, 0.15, 0.15); 
             }
-        } else if (distFromCenter < segmentWidth/2 + 1.5) {
-            // Track shoulder - gravel
-            const gravelVariation = noise.noise(x * 1.0, z * 1.0) * 0.15;
-            colors.push(0.5 + gravelVariation, 0.45 + gravelVariation, 0.4 + gravelVariation);
-        } else if (y < -0.5) {
-            // Ditches and low areas - darker soil or mud
-            const mudVariation = noise.noise(x * 0.7, z * 0.7) * 0.1;
-            colors.push(0.32 + mudVariation, 0.18 + mudVariation, 0.08 + mudVariation);
-        } else if (y < 1.5) {
-            // Medium heights - grass with variations
-            const grassVariation = noise.noise(x * 2.0, z * 2.0) * 0.15;
-            colors.push(
-                0.25 + grassVariation, 
-                0.45 + grassVariation, 
-                0.15 + grassVariation
-            );
-        } else if (y < 5) {
-            // Higher areas - lighter grass or rocky
-            const rockMix = noise.noise(x * 0.4, z * 0.4);
-            if (rockMix > 0.3) {
-                // Rocky outcrops
-                const rockColor = 0.6 + noise.noise(x * 3, z * 3) * 0.1;
-                colors.push(rockColor, rockColor * 0.95, rockColor * 0.9);
+        } else if (distFromCenter < segmentWidth/2 + 2) {
+            // Track shoulder - gravel and dirt with more variation
+            const gravelVariation = noise.noise(x * 2.0, z * 1.5) * 0.2;
+            const stoneChance = noise.noise(x * 5.0, z * 5.0);
+            
+            if (stoneChance > 0.7) {
+                // Occasional stones
+                colors.push(0.7 + microNoise, 0.7 + microNoise, 0.65 + microNoise);
             } else {
-                // High grass
-                const grassVariation = noise.noise(x * 3.0, z * 3.0) * 0.1;
+                // Regular gravel
+                colors.push(0.55 + gravelVariation, 0.46 + gravelVariation, 0.35 + gravelVariation);
+            }
+        } else if (distFromCenter < segmentWidth/2 + 8) {
+            // Transition area - varies based on distance
+            const shoulderDist = distFromCenter - segmentWidth/2;
+            
+            if (shoulderDist < 2) {
+                // Ditch area - darker, wetter soil
+                const mudVariation = noise.noise(x * 1.0, z * 1.0) * 0.15;
+                colors.push(0.25 + mudVariation, 0.15 + mudVariation, 0.05 + mudVariation);
+            } else if (y < 0) {
+                // Low spots - mud and water
+                const waterChance = noise.noise(x * 0.5, z * 0.5);
+                if (waterChance > 0.7 && y < -1) {
+                    // Small water puddles
+                    colors.push(0.1, 0.2 + microNoise, 0.35 + microNoise);
+                } else {
+                    // Mud
+                    colors.push(0.3 + microNoise, 0.2 + microNoise, 0.1 + microNoise);
+                }
+            } else {
+                // Regular soil transitioning to vegetation
+                const vegetation = Math.min(1, (shoulderDist - 2) / 4);
+                
                 colors.push(
-                    0.4 + grassVariation, 
-                    0.55 + grassVariation, 
-                    0.2 + grassVariation
+                    0.3 + localNoise - vegetation * 0.1,
+                    0.25 + localNoise + vegetation * 0.25,
+                    0.2 + localNoise
                 );
             }
         } else {
-            // Mountain tops - snow-capped or rocky peaks
-            const snowMix = noise.noise(x * 0.2, z * 0.2);
-            if (snowMix > 0.2 || y > 10) {
-                // Snow
-                const snowVariation = noise.noise(x * 5, z * 5) * 0.05;
+            // Outer terrain - varied based on height and features
+            if (y < 0) {
+                // Depressions and valleys - darker soils
+                const valleyColor = noise.noise(x * 0.3, z * 0.3);
                 colors.push(
-                    0.95 + snowVariation, 
-                    0.95 + snowVariation, 
-                    0.97 + snowVariation
+                    0.25 + valleyColor * 0.1, 
+                    0.2 + valleyColor * 0.05, 
+                    0.15 + valleyColor * 0.05
                 );
+            } else if (y < 5) {
+                // Low areas - grass and vegetation
+                const grassVariation = noise.noise(x * 0.7, z * 0.7) * 0.2;
+                colors.push(
+                    0.2 + grassVariation * 0.5, 
+                    0.4 + grassVariation, 
+                    0.1 + grassVariation * 0.5
+                );
+                
+                // Add flowers and ground cover
+                if (noise.noise(x * 3, z * 3) > 0.8) {
+                    colors[colors.length - 3] += 0.3; 
+                    colors[colors.length - 2] += 0.1;
+                }
+            } else if (y < 15) {
+                // Mid-elevation - mixed vegetation
+                const mixFactor = (y - 5) / 10;
+                const rockNoise = noise.noise(x * 0.5, z * 0.5);
+                
+                if (rockNoise > 0.6) {
+                    // Rocky outcroppings
+                    const rockColor = 0.6 + noise.noise(x * 2, z * 2) * 0.15;
+                    colors.push(rockColor, rockColor * 0.95, rockColor * 0.9);
+                } else {
+                    // Mixed vegetation
+                    colors.push(
+                        0.3 - mixFactor * 0.1 + localNoise, 
+                        0.5 - mixFactor * 0.1 + localNoise, 
+                        0.2 - mixFactor * 0.05 + localNoise
+                    );
+                }
+            } else if (y < 25) {
+                // Higher elevation - rocky terrain
+                const rockVariation = noise.noise(x * 1.5, z * 1.5) * 0.15;
+                colors.push(
+                    0.5 + rockVariation, 
+                    0.45 + rockVariation, 
+                    0.4 + rockVariation
+                );
+                
+                // Add moss patches
+                if (noise.noise(x * 4, z * 4) > 0.7) {
+                    colors[colors.length - 2] += 0.15; 
+                }
             } else {
-                // Rocky peaks
-                const rockVariation = noise.noise(x * 2, z * 2) * 0.1;
-                colors.push(
-                    0.5 + rockVariation, 
-                    0.5 + rockVariation, 
-                    0.55 + rockVariation
-                );
+                // Mountain tops - snow with rock showing through
+                const elevation = Math.min(1, (y - 25) / 20);
+                const snowNoise = noise.noise(x * 0.8, z * 0.8);
+                const snowAmount = elevation + snowNoise * 0.3;
+                
+                if (snowAmount > 0.5) {
+                    // Snow covered
+                    const snowVariation = noise.noise(x * 3, z * 3) * 0.06;
+                    colors.push(
+                        0.95 + snowVariation, 
+                        0.95 + snowVariation, 
+                        0.97 + snowVariation
+                    );
+                    
+                    // Blue tint in shadow areas
+                    if (noise.noise(x * 5, z * 5) > 0.7) {
+                        colors[colors.length - 1] += 0.03;
+                        colors[colors.length - 3] -= 0.03;
+                    }
+                } else {
+                    // Rocky peaks
+                    const rockVariation = noise.noise(x * 2, z * 2) * 0.15;
+                    colors.push(
+                        0.45 + rockVariation, 
+                        0.4 + rockVariation, 
+                        0.35 + rockVariation
+                    );
+                }
             }
         }
     }
@@ -181,81 +322,89 @@ export function generateTrackSegment(startZ, endZ, difficulty) {
     terrainMesh.castShadow = true;
     trackGroup.add(terrainMesh);
     
-    // Add improved side barriers with detail
-    const barrierHeight = 2.5;
-    const barrierGeometry = new THREE.BoxGeometry(1, barrierHeight, segmentLength);
+    // Enhanced barrier styles for better visibility
+    const barrierHeight = 3.0; 
+    const barrierGeometry = new THREE.BoxGeometry(1.2, barrierHeight, segmentLength);
     
-    // Create a more detailed barrier material
-    const barrierTexture = new THREE.TextureLoader().load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/brick_bump.jpg', undefined, undefined, (err) => {
-        // Fallback if texture fails to load
-        console.log("Using fallback texture");
-    });
-    
+    // Create barrier material with stripes
     const barrierMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0xcccccc,
-        roughness: 0.7,
-        metalness: 0.6,
-        map: barrierTexture 
+        color: 0xdd2222, 
+        roughness: 0.6,
+        metalness: 0.5
     });
     
+    // Add barriers with improved visibility
     const leftBarrier = new THREE.Mesh(barrierGeometry, barrierMaterial);
-    leftBarrier.position.set(-segmentWidth/2 - 0.5, barrierHeight/2, (startZ + endZ) / 2);
+    leftBarrier.position.set(-segmentWidth/2 - 0.6, barrierHeight/2, (startZ + endZ) / 2);
     leftBarrier.receiveShadow = true;
     leftBarrier.castShadow = true;
     trackGroup.add(leftBarrier);
     
     const rightBarrier = new THREE.Mesh(barrierGeometry, barrierMaterial);
-    rightBarrier.position.set(segmentWidth/2 + 0.5, barrierHeight/2, (startZ + endZ) / 2);
+    rightBarrier.position.set(segmentWidth/2 + 0.6, barrierHeight/2, (startZ + endZ) / 2);
     rightBarrier.receiveShadow = true;
     rightBarrier.castShadow = true;
     trackGroup.add(rightBarrier);
     
-    // Add barrier top details (guardrail)
-    const railGeometry = new THREE.BoxGeometry(1.2, 0.2, segmentLength);
-    const railMaterial = new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.5, metalness: 0.8 });
+    // Add reflectors on barriers for better visibility
+    const reflectorGeometry = new THREE.BoxGeometry(0.2, 0.5, 1);
+    const reflectorMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0xffffff, 
+        emissive: 0xffff00,
+        emissiveIntensity: 0.5,
+        roughness: 0.3, 
+        metalness: 0.8 
+    });
     
-    const leftRail = new THREE.Mesh(railGeometry, railMaterial);
-    leftRail.position.set(-segmentWidth/2 - 0.5, barrierHeight + 0.1, (startZ + endZ) / 2);
-    leftRail.castShadow = true;
-    trackGroup.add(leftRail);
+    // Add reflectors along the barriers
+    for (let z = 0; z < segmentLength; z += 10) {
+        const leftReflector = new THREE.Mesh(reflectorGeometry, reflectorMaterial);
+        leftReflector.position.set(-segmentWidth/2 - 0.6, barrierHeight - 0.5, (startZ + endZ) / 2 - z);
+        trackGroup.add(leftReflector);
+        
+        const rightReflector = new THREE.Mesh(reflectorGeometry, reflectorMaterial);
+        rightReflector.position.set(segmentWidth/2 + 0.6, barrierHeight - 0.5, (startZ + endZ) / 2 - z);
+        trackGroup.add(rightReflector);
+    }
     
-    const rightRail = new THREE.Mesh(railGeometry, railMaterial);
-    rightRail.position.set(segmentWidth/2 + 0.5, barrierHeight + 0.1, (startZ + endZ) / 2);
-    rightRail.castShadow = true;
-    trackGroup.add(rightRail);
-    
-    // Add obstacles based on difficulty with improved variety
-    const numObstacles = Math.floor(2 + difficulty * 3);
+    // Add more dynamic obstacles based on difficulty
+    const numObstacles = Math.floor(3 + difficulty * 4);
     const obstacleTypes = [
         { 
-            geometry: new THREE.BoxGeometry(2, 2, 2), 
+            geometry: new THREE.BoxGeometry(2.5, 2.5, 2.5), 
             color: 0xff0000, 
-            mass: 10,
+            mass: 12,
             name: 'cube'
         },
         { 
-            geometry: new THREE.SphereGeometry(1.5, 16, 16), 
+            geometry: new THREE.SphereGeometry(1.8, 20, 20), 
             color: 0xff6600, 
-            mass: 8,
+            mass: 10,
             name: 'sphere'
         },
         { 
-            geometry: new THREE.ConeGeometry(1.5, 3, 8), 
+            geometry: new THREE.ConeGeometry(1.8, 3.5, 12), 
             color: 0xff9900, 
-            mass: 5,
+            mass: 7,
             name: 'cone'
         },
         { 
-            geometry: new THREE.TorusGeometry(1.5, 0.5, 8, 24), 
+            geometry: new THREE.TorusGeometry(1.8, 0.7, 12, 24), 
             color: 0xff3366, 
-            mass: 7,
+            mass: 9,
             name: 'torus'
         },
         { 
-            geometry: new THREE.CylinderGeometry(1, 1, 3, 8), 
+            geometry: new THREE.CylinderGeometry(1.2, 1.2, 3.5, 12), 
             color: 0xffcc00, 
-            mass: 12,
+            mass: 15,
             name: 'cylinder'
+        },
+        {
+            geometry: new THREE.TetrahedronGeometry(2),
+            color: 0x00ccff,
+            mass: 8,
+            name: 'tetrahedron'
         }
     ];
     
@@ -397,7 +546,7 @@ export function generateTrackSegment(startZ, endZ, difficulty) {
         const posZ = startZ - Math.random() * segmentLength;
         
         // Find height at this position for better placement
-        const terrainY = getTerrainHeightAt(posX, posZ, startZ, terrainHeightMap, terrainWidthPoints, terrainLengthPoints, segmentWidth + 30, segmentLength);
+        const terrainY = getTerrainHeightAt(posX, posZ, startZ, terrainHeightMap, terrainWidthPoints, terrainLengthPoints, segmentWidth + 60, segmentLength);
         
         decor.position.set(posX, terrainY, posZ);
         decor.scale.set(type.scale, type.scale, type.scale);
@@ -413,7 +562,7 @@ export function generateTrackSegment(startZ, endZ, difficulty) {
     const heightfieldShape = new CANNON.Heightfield(
         reshapeArray(terrainHeightMap, terrainWidthPoints),
         {
-            elementSize: (segmentWidth + 30) / heightfieldSize.width
+            elementSize: (segmentWidth + 60) / heightfieldSize.width
         }
     );
     
@@ -426,17 +575,17 @@ export function generateTrackSegment(startZ, endZ, difficulty) {
     });
     
     groundBody.addShape(heightfieldShape, 
-        new CANNON.Vec3(-(segmentWidth + 30)/2, -1, startZ),
+        new CANNON.Vec3(-(segmentWidth + 60)/2, -1, startZ),
         new CANNON.Quaternion().setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI/2)
     );
     
     // Add side barriers to physics
-    const barrierShape = new CANNON.Box(new CANNON.Vec3(0.5, barrierHeight/2, segmentLength/2));
-    groundBody.addShape(barrierShape, new CANNON.Vec3(-segmentWidth/2 - 0.5, barrierHeight/2, (startZ + endZ) / 2));
-    groundBody.addShape(barrierShape, new CANNON.Vec3(segmentWidth/2 + 0.5, barrierHeight/2, (startZ + endZ) / 2));
+    const barrierShape = new CANNON.Box(new CANNON.Vec3(0.6, barrierHeight/2, segmentLength/2));
+    groundBody.addShape(barrierShape, new CANNON.Vec3(-segmentWidth/2 - 0.6, barrierHeight/2, (startZ + endZ) / 2));
+    groundBody.addShape(barrierShape, new CANNON.Vec3(segmentWidth/2 + 0.6, barrierHeight/2, (startZ + endZ) / 2));
     
-    // Add more pronounced slope to make it go downhill
-    const slopeAngle = -Math.PI * 0.07; // Steeper slope
+    // Enhanced downhill slope - make it steeper for more speed and excitement
+    const slopeAngle = -Math.PI * 0.1; 
     groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), slopeAngle);
     trackGroup.rotation.x = slopeAngle;
     
@@ -449,7 +598,6 @@ export function generateTrackSegment(startZ, endZ, difficulty) {
     };
 }
 
-// Helper function to reshape a flat array into a 2D array for heightfield
 function reshapeArray(array, width) {
     const result = [];
     for (let i = 0; i < array.length; i += width) {
@@ -460,7 +608,6 @@ function reshapeArray(array, width) {
     return result;
 }
 
-// Helper function to find the height of terrain at a specific point
 function getTerrainHeightAt(x, z, startZ, heightMap, widthPoints, lengthPoints, width, length) {
     // Convert world coords to heightmap indices
     const halfWidth = width / 2;
@@ -479,15 +626,14 @@ function getTerrainHeightAt(x, z, startZ, heightMap, widthPoints, lengthPoints, 
     return heightMap[zIndex * widthPoints + xIndex] || 0;
 }
 
-// Create a more detailed tree geometry
 function createTreeGeometry(isSmall = false) {
     const treeGroup = new THREE.Group();
     
     // More natural trunk with thicker base
     const trunkHeight = isSmall ? 1.2 : 2;
     const trunkGeometry = new THREE.CylinderGeometry(
-        isSmall ? 0.1 : 0.2,  // top radius
-        isSmall ? 0.2 : 0.4,  // bottom radius
+        isSmall ? 0.1 : 0.2,  
+        isSmall ? 0.2 : 0.4,  
         trunkHeight, 
         8
     );
