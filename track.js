@@ -183,18 +183,34 @@ export function generateTrackSegment(startZ, endZ, difficulty) {
     // Add decorative elements (trees, rocks)
     const numDecor = Math.floor(10 + difficulty * 5);
     const decorTypes = [
-        { geometry: createTreeGeometry(), color: 0x228B22, scale: 1 }, // Tree
-        { geometry: new THREE.SphereGeometry(1, 6, 4), color: 0x888888, scale: 0.8 }, // Rock
+        { type: 'tree', color: 0x228B22, scale: 1 }, // Tree
+        { type: 'rock', geometry: new THREE.SphereGeometry(1, 6, 4), color: 0x888888, scale: 0.8 }, // Rock
     ];
     
     for (let i = 0; i < numDecor; i++) {
         const typeIndex = Math.floor(Math.random() * decorTypes.length);
         const type = decorTypes[typeIndex];
         
-        const decor = new THREE.Mesh(
-            type.geometry,
-            new THREE.MeshPhongMaterial({ color: type.color })
-        );
+        let decor;
+        
+        if (type.type === 'tree') {
+            // Use the tree group directly
+            decor = createTreeGeometry();
+            decor.traverse(child => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+        } else {
+            // Create mesh for other decor types
+            decor = new THREE.Mesh(
+                type.geometry,
+                new THREE.MeshPhongMaterial({ color: type.color })
+            );
+            decor.castShadow = true;
+            decor.receiveShadow = true;
+        }
         
         // Position outside the main track
         const side = Math.random() > 0.5 ? 1 : -1;
@@ -203,8 +219,6 @@ export function generateTrackSegment(startZ, endZ, difficulty) {
         
         decor.position.set(posX, 0, posZ);
         decor.scale.set(type.scale, type.scale, type.scale);
-        decor.castShadow = true;
-        decor.receiveShadow = true;
         trackGroup.add(decor);
     }
     
